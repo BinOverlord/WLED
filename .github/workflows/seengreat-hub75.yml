@@ -1,0 +1,53 @@
+name: SeenGreat HUB75 Build
+
+# Builds only the custom seengreat_esp32s3_hub75 firmware.
+
+on:
+  push:
+    branches:
+      - 'claude/seengreat-v2-s3-firmware-6bripo'
+  workflow_dispatch:
+
+env:
+  PIO_ENV: seengreat_esp32s3_hub75
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+
+  build:
+    name: Build seengreat_esp32s3_hub75
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version-file: '.nvmrc'
+        cache: 'npm'
+    - run: |
+        npm ci
+        VERSION=`date +%y%m%d0`
+        sed -i -r -e "s/define VERSION .+/define VERSION $VERSION/" wled00/wled.h
+    - name: Cache PlatformIO
+      uses: actions/cache@v4
+      with:
+        path: |
+              ~/.platformio/.cache
+              ~/.buildcache
+              build_output
+        key: pio-${{ runner.os }}-${{ env.PIO_ENV }}-${{ hashFiles('platformio.ini', 'pio-scripts/output_bins.py') }}-${{ hashFiles('wled00/**', 'usermods/**') }}
+        restore-keys: pio-${{ runner.os }}-${{ env.PIO_ENV }}-${{ hashFiles('platformio.ini', 'pio-scripts/output_bins.py') }}-
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+          python-version: '3.12'
+          cache: 'pip'
+    - name: Install PlatformIO
+      run: pip install -r requirements.txt
+
+    - name: Build firmware
+      run: pio run -e ${{ env.PIO_ENV }}
+    - uses: actions/upload-artifact@v4
+      with:
+        name: firmware-${{ env.PIO_ENV }}
+        path: build_output/release/*.bin
